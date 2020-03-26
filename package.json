@@ -1,0 +1,21 @@
+{
+  "name": "secret-hitler",
+  "version": "1.0.0",
+  "description": "Secret Hitler game Server",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Mike Rivers",
+  "license": "ISC",
+  "engines": {
+    "node": "13.x"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.2"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "uuid": "^7.0.2"
+  }
+}
