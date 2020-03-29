@@ -8,7 +8,7 @@ module.exports = function(app) {
 
   // Get the match info
   app.route('/match/:matchId')
-    .get(commands.match_info)
+    .post(commands.match_info)
 
   // Start match if enough players (only creator)
   app.route('/match/:matchId/start')
@@ -24,10 +24,10 @@ module.exports = function(app) {
 
   // Propose chancelor (only president)
   app.route('/match/:matchId/propose/:chancelor')  
-    .post(commands.propose)
+    .post(commands.propose_chancelor)
   
   // Discard policy (only president or chancelor)
   app.route('/match/:matchId/discard/:policy')
-  .post(commands.discard)
+  .post(commands.discard_policy)
 
 };
