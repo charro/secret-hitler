@@ -14,6 +14,8 @@ PROPOSING_CHANCELOR = 'PROPOSING_CHANCELOR';
 VOTING_CHANCELOR = 'VOTING_CHANCELOR';
 PRESIDENT_DISCARD = 'PRESIDENT_DISCARD';
 CHANCELOR_DISCARD = 'CHANCELOR_DISCARD';
+LIBERALS_WON = 'LIBERALS_WON';
+FASCISTS_WON = 'FASCISTS_WON';
 
 // ROLES
 LIBERAL = 'LIBERAL';
@@ -68,25 +70,28 @@ exports.create_match = function(req, res) {
 
 exports.join_match =  function(req, res) {
     let matchId = req.params.matchId;
+    if(!match_exists(matchId)){ 
+        res.status(404).send("No match with id " + matchId + " was found"); 
+        return;
+    }
     let player_name = req.body.player;
     let player_pass = req.body.pass;
 
-    if(!match_exists){ res.status(404).send("No match with id " + matchId + " was found"); return;}
     let match = get_match(matchId);
 
     if(match.status !== MATCHMAKING){
-        res.status(403).send("Match already started");
+        res.status(403).send("ERROR: Match already started");
         return;
     }
 
     if(match.players.length >= MAX_PLAYERS){
-        res.status(403).send("Match is Full");
+        res.status(403).send("ERROR: Match is Full");
         return;
     }
 
     let existing_player_with_name = get_player(match, player_name);
-    if(existing_player_with_name.length > 0){
-        res.status(403).send("Duplicated player name");
+    if(existing_player_with_name){
+        res.status(403).send("ERROR: Duplicated player name");
         return;
     }
 
@@ -107,7 +112,10 @@ exports.start_match = function(req, res) {
 
     let matchId = req.params.matchId;
     let player_name = req.body.player;
-    if(!match_exists){ res.status(404).send("No match with id " + matchId + " was found"); return;}
+    if(!match_exists(matchId)){ 
+        res.status(404).send("No match with id " + matchId + " was found"); 
+        return;
+    }
     let match = get_match(matchId);
 
     if(are_correct_player_credentials(match, req)){
@@ -118,7 +126,7 @@ exports.start_match = function(req, res) {
         };
         
         if(match.players.length < MIN_PLAYERS){
-            res.status(403).send("You need at least " + MIN_PLAYERS + " to start");
+            res.status(403).send("You need at least " + MIN_PLAYERS + " players to start");
             return;
         };
         
@@ -131,22 +139,40 @@ exports.start_match = function(req, res) {
         store_match(matchId, match);
         res.send("OK"); 
     }
-}
+    else{
+        res.status(401).send("Error: Wrong player credentials");
+        return;
+    }}
 
 exports.match_info = function(req, res) {
     let matchId = req.params.matchId;
     let player_name = req.body.player;
-    if(!match_exists){ res.status(404).send("No match with id " + matchId + " was found"); return;}
+    if(!match_exists(matchId)){ 
+        res.status(404).send("No match with id " + matchId + " was found"); 
+        return;
+    }
     let match = get_match(matchId);
 
     if(are_correct_player_credentials(match, req)){
-        let player = get_player(match, player_name);
-        match.your_role=player.role;
-        // Don't show the role of rest of players if you're a liberal
-        if(player.role === LIBERAL){
-            let players = match.players;
-            players.forEach(p => p.role = "HIDDEN");
-        }
+        // Hide info you should't see
+        match.players.forEach(p => delete p.pass);
+        
+        if(match.status !== FINISHED){
+            let player = get_player(match, player_name);
+            match.your_role=player.role;
+            
+            if(player.role === LIBERAL){
+                let players = match.players;
+                players.forEach(p => p.role = "HIDDEN");
+            }
+            if(!is_my_turn_to_discard(match, player)){
+                let cards = match.game_state.policy_cards;
+                match.game_state.policy_cards = cards.map(p => "HIDDEN"); 
+            }
+            Object.keys(match.game_state.votes).map(function(key, index) {
+                match.game_state.votes[key] = "HIDDEN";
+              });
+        }    
     }
     else{
         res.status(401).send("Error: Wrong player credentials");
@@ -159,7 +185,10 @@ exports.match_info = function(req, res) {
 exports.vote = function(req, res) {
     let matchId = req.params.matchId;
     let player_name = req.body.player;
-    if(!match_exists(matchId)){ res.status(404).send("No match with id " + matchId + " was found"); return;}
+    if(!match_exists(matchId)){ 
+        res.status(404).send("No match with id " + matchId + " was found"); 
+        return;
+    }
     let match = get_match(matchId);
 
     if(are_correct_player_credentials(match, req)){
@@ -208,10 +237,10 @@ exports.vote = function(req, res) {
                 set_next_president(match);
             }
 
+            match.last_voting = { proposed_chancelor: match.game_state.chancelor_proposed,
+                votes: votes };
             match.game_state.chancelor_proposed = "";
             match.game_state.votes = {};
-            match.last_voting = { proposed_chancelor: match.game_state.chancelor_proposed,
-                                             votes: votes };
         }
 
         store_match(matchId, match);
@@ -226,7 +255,10 @@ exports.vote = function(req, res) {
 exports.propose_chancelor = function(req, res) {
     let matchId = req.params.matchId;
     let player_name = req.body.player;
-    if(!match_exists){ res.status(404).send("No match with id " + matchId + " was found"); return;}
+    if(!match_exists(matchId)){ 
+        res.status(404).send("No match with id " + matchId + " was found"); 
+        return;
+    }
     let match = get_match(matchId);
 
     if(are_correct_player_credentials(match, req)){
@@ -272,47 +304,54 @@ exports.discard_policy = function(req, res) {
     let matchId = req.params.matchId;
     let player_name = req.body.player;
     let policy = req.params.policy;
-    if(!match_exists){ res.status(404).send("No match with id " + matchId + " was found"); return;}
+    if(!match_exists(matchId)){ 
+        res.status(404).send("No match with id " + matchId + " was found"); 
+        return;
+    }
     let match = get_match(matchId);
 
     if(are_correct_player_credentials(match, req)){
         let player = get_player(match, player_name);
 
-        if(player.charge === PRESIDENT && match.game_state.stage === PRESIDENT_DISCARD || 
-            player.charge === CHANCELOR && match.game_state.stage === CHANCELOR_DISCARD){
-                if(policy.toUpperCase() !== LIBERAL && policy.toUpperCase() !== FASCIST){
-                    res.status(403).send("Policy cards can only be of type LIBERAL or FASCIST"); 
-                    return;
+        if(is_my_turn_to_discard(match, player)){
+            if(policy.toUpperCase() !== LIBERAL && policy.toUpperCase() !== FASCIST){
+                res.status(403).send("Policy cards can only be of type LIBERAL or FASCIST"); 
+                return;
+            }
+
+            let policy_cards = match.game_state.policy_cards;
+            if(!policy_cards.includes(policy.toUpperCase())){
+                res.status(403).send("No remaining cards of type " + policy); 
+                return;
+            }
+
+            var first_index = policy_cards.findIndex(p => p === policy.toUpperCase());
+            policy_cards.splice(first_index,1);
+
+            // If there are still 2 cards, pass them to the Chancelor
+            if(match.game_state.stage === PRESIDENT_DISCARD){
+                match.game_state.stage = CHANCELOR_DISCARD;
+            }
+            // If there's just one card, approve the policy
+            else if(match.game_state.stage === CHANCELOR_DISCARD){
+                let chosen_policy = policy_cards[0];
+                if(chosen_policy === LIBERAL){
+                    match.liberal_policies_approved++;
+                }
+                else{
+                    match.fascist_policies_approved++;
                 }
 
-                let policy_cards = match.game_state.policy_cards;
-                if(!policy_cards.includes(policy.toUpperCase())){
-                    res.status(403).send("No remaining cards of type " + policy); 
-                    return;
-                }
-
-                var first_index = policy_cards.findIndex(p => p === policy.toUpperCase());
-                policy_cards = policy_cards.splice(first_index,1);
-
-                // If there are still 2 cards, pass them to the Chancelor
-                if(match.game_state.stage === PRESIDENT_DISCARD){
-                    match.game_state.stage = CHANCELOR_DISCARD;
-                }
-                // If there's just one card, approve the policy
-                if(match.game_state.stage === CHANCELOR_DISCARD){
-                    let chosen_policy = policy_cards[0];
-                    if(chosen_policy === LIBERAL){
-                        match.liberal_policies_approved++;
-                    }
-                    else{
-                        match.fascist_policies_approved++;
-                    }
-
+                if(!match_ends(match)){
                     new_turn(match);
                 }
+                else{
+                    res.send("THE MATCH HAS FINISHED. THANKS FOR PLAYING");        
+                }
+            }
 
-                store_match(matchId, match);
-                res.send("OK");
+            store_match(matchId, match);
+            res.send("OK");
         }
         else{
             res.status(403).send("You need to be President or Chancelor to discard and they must be elected first." + 
@@ -320,10 +359,31 @@ exports.discard_policy = function(req, res) {
             return;
         }
 
+    } else{
+        res.status(401).send("Error: Wrong player credentials");
+        return;
     }
 };
 
 // PRIVATE FUNCTIONS
+function match_ends(match){
+    if(match.liberal_policies_approved > 4){
+        match.status = FINISHED;
+        match.game_state.stage = LIBERALS_WON;
+        store_match(match);
+        return true;
+    }
+
+    if(match.fascist_policies_approved > 5){
+        match.status = FINISHED;
+        match.game_state.stage = FASCISTS_WON;
+        store_match(match);
+        return true;
+    }
+
+    return false;
+}
+
 function are_correct_player_credentials(match, req){
     if(!req.body || !req.body.player || !req.body.pass){
         return false;
@@ -375,6 +435,11 @@ function setup_match(match){
     players = shuffle_array(players);
 }
 
+function is_my_turn_to_discard(match, player){
+    return player.charge === PRESIDENT && match.game_state.stage === PRESIDENT_DISCARD || 
+        player.charge === CHANCELOR && match.game_state.stage === CHANCELOR_DISCARD;
+}
+
 function getRandomInt(max) {
     return Math.floor(Math.random() * Math.floor(max));
   }
@@ -393,16 +458,22 @@ function shuffle_array(a) {
 
 function set_next_president(match){
     let players = match.players;
-    let president_index = -1;
+    let current_president_index = -1;
     for(let i=0; i<players.length; i++){
         if(players[i].charge === PRESIDENT){
-           president_index = i; 
+           current_president_index = i; 
         }
     }
 
-    let new_president_index = 
-        (president_index === players.length - 1 ? 0 : president_index++);
-    
+    // Match haven't started yet, choose the first player as president
+    let new_president_index = 0;
+    if(current_president_index !== -1){
+        // Start from the beginning if president is last player. Go for the next one, otherwise
+        new_president_index = 
+            (current_president_index === players.length - 1 ? 0 : current_president_index + 1);
+    }
+
+    // Reset charges of all players and set the new President
     players.forEach(p => p.charge = "");
     players[new_president_index].charge = PRESIDENT;
 }
@@ -410,14 +481,14 @@ function set_next_president(match){
 function new_turn(match){
     match.game_state.stage = PROPOSING_CHANCELOR;
     match.game_state.round++;
-    take_three_cards(match);
+    shuffle_three_cards(match);
     set_next_president(match);
 }
 
-function take_three_cards(match){
+function shuffle_three_cards(match){
     let cards = [];
     for(let i=0; i<3; i++){
-        let policy = getRandomInt(100) > 50 ? LIBERAL : FASCIST;
+        let policy = getRandomInt(100) > 65 ? LIBERAL : FASCIST;
         cards.push(policy);
     }
     match.game_state.policy_cards = cards;
