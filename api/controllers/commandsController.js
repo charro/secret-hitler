@@ -358,7 +358,7 @@ exports.discard_policy = function(req, res) {
             }
             // If there's just one card, approve the policy
             else if(match.game_state.stage === CHANCELOR_DISCARD){
-                let chosen_policy = policy_cards[0];
+                let chosen_policy = policy_cards[0].type;
                 if(chosen_policy === LIBERAL){
                     match.liberal_policies_approved++;
                 }
@@ -531,6 +531,7 @@ function new_turn(match){
 
 function shuffle_three_cards(match){
     let cards = [];
+    let chosen_cards = [];
 
     // Insert all cards on the deck
     for(let i=0; i<6; i++){
@@ -545,7 +546,7 @@ function shuffle_three_cards(match){
     // Shuffle
     for(let i=0; i<3; i++){
         let card_index = getRandomInt(cards.length-1);
-        cards.push(card.splice(card_index, 1));
+        chosen_cards.push(cards.splice(card_index, 1)[0]);
     }
-    match.game_state.policy_cards = cards;
+    match.game_state.policy_cards = chosen_cards;
 }
