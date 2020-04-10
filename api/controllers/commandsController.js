@@ -344,12 +344,12 @@ exports.discard_policy = function(req, res) {
             }
 
             let policy_cards = match.game_state.policy_cards;
-            if(!policy_cards.includes(policy.toUpperCase())){
+            if(!policy_cards.map(p => p.type).includes(policy.toUpperCase())){
                 res.status(403).send("No remaining cards of type " + policy); 
                 return;
             }
 
-            var first_index = policy_cards.findIndex(p => p === policy.toUpperCase());
+            var first_index = policy_cards.findIndex(p => p.type === policy.toUpperCase());
             policy_cards.splice(first_index,1);
 
             // If there are still 2 cards, pass them to the Chancelor
@@ -459,15 +459,14 @@ function get_all_matches(){
 
 function setup_match(match){
     match.status = ONGOING;
+
+    // Start a new turn, including the First President
     new_turn(match);
 
     // Share the different roles between players
     let players = match.players;
     let number_of_players = players.length;
     let roles_for_match = ROLE_SHARE_FOR_PLAYER_NUM[number_of_players];
-
-    // Decide a Random President
-    players[getRandomInt(number_of_players)].charge = PRESIDENT;
 
     // Shuffle the player list and give the roles
     players = shuffle_array(players);
@@ -510,8 +509,8 @@ function set_next_president(match){
         }
     }
 
-    // Match haven't started yet, choose the first player as president
-    let new_president_index = 0;
+    // In case match haven't started yet, set a random player as president
+    let new_president_index = getRandomInt(players.length-1);
     if(current_president_index !== -1){
         // Start from the beginning if president is last player. Go for the next one, otherwise
         new_president_index = 
@@ -532,9 +531,21 @@ function new_turn(match){
 
 function shuffle_three_cards(match){
     let cards = [];
+
+    // Insert all cards on the deck
+    for(let i=0; i<6; i++){
+        let liberal_card = { id: "L"+i, type: LIBERAL};
+        cards.push(liberal_card);
+    }
+    for(let i=0; i<11; i++){
+        let fascist_card = { id: "F"+i, type: FASCIST};
+        cards.push(fascist_card);
+    }
+
+    // Shuffle
     for(let i=0; i<3; i++){
-        let policy = getRandomInt(100) > 65 ? LIBERAL : FASCIST;
-        cards.push(policy);
+        let card_index = getRandomInt(cards.length-1);
+        cards.push(card.splice(card_index, 1));
     }
     match.game_state.policy_cards = cards;
 }
