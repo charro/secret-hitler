@@ -41,6 +41,11 @@ let ROLE_SHARE_FOR_PLAYER_NUM = {
 // Create a new match and return its ID
 exports.create_match = function(req, res) {
 
+    if(!req.body.player || !req.body.pass){
+        res.status(403).send("ERROR: You need to provide player and pass in body");
+        return;
+    }
+
     let new_match = {   id : uuid.v4(),
                         status : MATCHMAKING,
                         players : [{
@@ -67,6 +72,25 @@ exports.create_match = function(req, res) {
 
     res.json(new_match);
 };
+
+exports.find_matches = function(req, res) {
+    let player_name = req.body.player;
+
+    let matches_in_matchmake = find_matchmaking_matches();
+    let my_matches = find_my_matches(player_name);
+
+    matches_in_matchmake = matches_in_matchmake.map(match => {
+        let match_creator_name = match.players.filter(p => p.creator)[0].name;
+        return { id: match.id, creator: match_creator_name, status: match.status}
+    });
+
+    my_matches = my_matches.map(match => { return { id: match.id, status: match.status}});
+    
+    let matches = { on_matchmaking: matches_in_matchmake, my_matches: my_matches };
+
+    res.json(matches);
+}
+
 
 exports.join_match =  function(req, res) {
     let matchId = req.params.matchId;
@@ -410,6 +434,27 @@ function match_exists(matchId){
 
 function get_match(matchId){
     return JSON.parse(fs.readFileSync('matches/' + matchId + '.match', 'utf8'));
+}
+
+function find_matchmaking_matches(){
+    return get_all_matches().filter(match => match.status === MATCHMAKING);
+}
+
+function find_my_matches(player_name){
+    return get_all_matches().filter(match => {
+        let player = match.players.filter(player => player.name === player_name)[0];
+        return player !== undefined;
+    });
+}
+
+function get_all_matches(){
+    let all_matches = fs.readdirSync('matches')
+        .filter(file => file.indexOf(".match", this.length - ".match".length) !== -1 )
+        .map(file => {
+            return JSON.parse(fs.readFileSync('matches/' + file, 'utf8'));
+        });
+
+    return all_matches;
 }
 
 function setup_match(match){

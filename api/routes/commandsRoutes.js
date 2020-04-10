@@ -6,6 +6,10 @@ module.exports = function(app) {
   app.route('/match')
     .post(commands.create_match)
 
+      // Get the match info
+  app.route('/match/find')
+  .post(commands.find_matches)
+
   // Get the match info
   app.route('/match/:matchId')
     .post(commands.match_info)
