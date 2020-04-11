@@ -77,7 +77,7 @@ exports.create_match = function(req, res) {
 
     store_match(new_match.id, new_match);
 
-    res.json({type: "GAME", content: new_match});
+    res.json({type: "GAME", timestamp: Date.now(), content: new_match});
 };
 
 exports.find_matches = function(req, res) {
@@ -98,7 +98,7 @@ exports.find_matches = function(req, res) {
     
     let matches = { on_matchmaking: matches_in_matchmake, my_matches: my_matches };
 
-    res.json({ type: "MATCHLIST", content: matches });
+    res.json({ type: "MATCHLIST", timestamp: Date.now(), content: matches });
 }
 
 exports.join_match =  function(req, res) {
@@ -445,11 +445,11 @@ function get_response_body(match, player_name){
         });
     }
 
-    return { type: "GAME", content: match}
+    return { type: "GAME", timestamp: Date.now(), content: match}
 }
 
 function get_error_body(code, msg) {
-    return { type: "ERROR", content: {code: code, msg: msg} }
+    return { type: "ERROR", timestamp: Date.now(), content: {code: code, msg: msg} }
 }
 
 function match_ends(match){
