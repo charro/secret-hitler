@@ -116,3 +116,6 @@ dist
 
 # MATCH FILES
 *.match
+
+# VStudio
+.vscode
