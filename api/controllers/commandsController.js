@@ -66,7 +66,7 @@ exports.create_match = function(req, res) {
                             round : 0,
                             stage : '',
                             chancelor_proposed: '',
-                            votes : {},
+                            votes : [],
                             policy_cards: []
                         },
                         last_voting : {},
@@ -235,17 +235,22 @@ exports.vote = function(req, res) {
         let player = get_player(match, player_name);
         let game_state = match.game_state;
         
-        game_state.votes[player.name] = vote;
+        // Change the vote if already exist, create new otherwise 
+        let player_vote = game_state.votes.filter(v => v.player === player.name)[0];
+        if(!player_vote){
+            player_vote = { player: player.name, vote:'' };
+            game_state.votes.push(player_vote);
+        }
+        
+        player_vote.vote = vote;
 
         // If voting is completed, apply the consequences
-        if(Object.keys(game_state.votes).length === match.players.length){
+        if(game_state.votes.length === match.players.length){
             let jaCount = 0;
             let neinCount = 0;
-            let votes = game_state.votes;
-            let vote_keys = Object.keys(votes);                
-            vote_keys.forEach(k => {
-                let vote = votes[k];
-                if(vote === "ja"){
+            let votes = game_state.votes;                
+            votes.forEach(v => {
+                if(v.vote === "ja"){
                     jaCount++;
                 }
                 else{
@@ -279,7 +284,7 @@ exports.vote = function(req, res) {
             match.last_voting = { proposed_chancelor: match.game_state.chancelor_proposed,
                 votes: votes };
             match.game_state.chancelor_proposed = "";
-            match.game_state.votes = {};
+            match.game_state.votes = [];
         }
 
         store_match(matchId, match);
@@ -433,16 +438,16 @@ function get_response_body(match, player_name){
         if(player.role === FASCIST){
             players = players.filter(p => p.role !== HITLER);
         }
-        players.forEach(p => p.role = "HIDDEN");
+
+        // Besides of the previous, you see only your own role
+        players.filter(p => p.name !== player_name).forEach(p => p.role = "HIDDEN");
 
         if(!is_my_turn_to_discard(match, player)){
             let cards = match.game_state.policy_cards;
             match.game_state.policy_cards = cards.map(p => "HIDDEN"); 
         }
 
-        Object.keys(match.game_state.votes).map(function(key, index) {
-        match.game_state.votes[key] = "HIDDEN";
-        });
+        match.game_state.votes.forEach(v => v.vote = "HIDDEN");
     }
 
     return { type: "GAME", timestamp: Date.now(), content: match}
