@@ -16,6 +16,7 @@ PRESIDENT_DISCARD = 'PRESIDENT_DISCARD';
 CHANCELOR_DISCARD = 'CHANCELOR_DISCARD';
 LIBERALS_WON = 'LIBERALS_WON';
 FASCISTS_WON = 'FASCISTS_WON';
+FASCISTS_WON_HITLER_PRESIDENT = 'FASCISTS_WON_HITLER_PRESIDENT';
 
 // ROLES
 LIBERAL = 'LIBERAL';
@@ -268,7 +269,8 @@ exports.vote = function(req, res) {
                 // If new President is Hitler and there are at least 3 Fascist policies approved
                 // Fascists win automatically
                 if(president.role === HITLER && match.fascist_policies_approved >= 3){
-                    match.game_state.stage = FASCISTS_WON;
+                    match.status = FINISHED;
+                    match.game_state.stage = FASCISTS_WON_HITLER_PRESIDENT;
                 }
                 // Otherwise, just continue
                 else{
@@ -403,11 +405,13 @@ exports.discard_policy = function(req, res) {
                 else{
                     // THE MATCH HAS FINISHED
                     res.json(get_response_body(match, player_name));
+                    return;
                 }
             }
 
             store_match(matchId, match);
             res.json(get_response_body(match, player_name));
+            return;
         }
         else{
             res.status(403);
